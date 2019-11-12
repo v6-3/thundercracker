@@ -57,6 +57,7 @@
 
 
 // B L U E T O O T H
+#define HAVE_NRF8001
 #ifdef HAVE_NRF8001
 
 #define NRF8001_SPI         SPI2

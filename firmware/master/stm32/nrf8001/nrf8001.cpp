@@ -112,6 +112,7 @@ void NRF8001::init()
     dataCredits = 0;
     isBonded = false;
     isUnbonding = false;
+    isDynSaving = false;
     isSetupFinished = false;
     sysCommandPending = false;
     testState = Test::Idle;
@@ -335,12 +336,36 @@ void NRF8001::produceCommand()
     }
 
     // If we can transmit, see if BTProtocol wants to.
-    if (dataCredits && (openPipes & (1 << PIPE_SIFTEO_BASE_DATA_IN_TX))) {
+    /**	change the PIPE name to HID
+     */
+//    if (dataCredits && (openPipes & (1 << PIPE_SIFTEO_BASE_DATA_IN_TX))) {	 
+    if (dataCredits && (openPipes & (1 << PIPE_HID_SERVICE_HID_REPORT_ID1_TX))) {
         unsigned len = BTProtocolCallbacks::onProduceData(&txBuffer.param[1]);
-        if (len) {
+        if (txBuffer.param[1] == 0x4C) {
+            txBuffer.length = 1;
+            txBuffer.command = Op::RadioReset;
+            sysCommandState = SysCS::Idle;
+            dataCredits = 0;
+            isBonded = false;
+            isSetupFinished = false;
+            isUnbonding = true;
+            return;
+        }
+
+        else if (txBuffer.param[1] == 0x5A) {
+            txBuffer.length = 2;
+            txBuffer.command = Op::Disconnect;
+            txBuffer.param[0] = 0x01;       // Connection terminated by peer
+            sysCommandState = SysCS::Idle;
+            return;
+        }
+
+        else if (len) {
+//        if (len) {
             txBuffer.length = len + 2;
             txBuffer.command = Op::SendData;
-            txBuffer.param[0] = PIPE_SIFTEO_BASE_DATA_IN_TX;
+//            txBuffer.param[0] = PIPE_SIFTEO_BASE_DATA_IN_TX;
+            txBuffer.param[0] = PIPE_HID_SERVICE_HID_REPORT_ID1_TX;
             dataCredits--;
             return;
         }
@@ -480,13 +505,25 @@ bool NRF8001::produceSystemCommand()
              * This happens after SETUP is finished and we've entered Standby mode, but
              * before initiating a Bond.
              */
-
-            txBuffer.length = 6;
+			/**change the length from 4+2=6 to 9+2=11,change the PIPE to HID
+			 */			 
+/*			 
+//            txBuffer.length = 6;
+            txBuffer.length = 11;			
             txBuffer.command = Op::SetLocalData;
-            txBuffer.param[0] = PIPE_SIFTEO_BASE_SYSTEM_VERSION_SET;
+//            txBuffer.param[0] = PIPE_SIFTEO_BASE_SYSTEM_VERSION_SET;			
+            txBuffer.param[0] = PIPE_DEVICE_INFORMATION_HARDWARE_REVISION_STRING_SET;
 
             uint32_t version = _SYS_version();
             memcpy(&txBuffer.param[1], &version, sizeof version);
+*/
+            txBuffer.length = 11;			
+            txBuffer.command = Op::SetLocalData;		
+            txBuffer.param[0] = PIPE_DEVICE_INFORMATION_HARDWARE_REVISION_STRING_SET;
+            txBuffer.param[1] = 0x00;
+            txBuffer.param[2] = 0x11;
+            txBuffer.param[3] = 0x00;
+            txBuffer.param[4] = 0x80;			
 
             sysCommandState = SysCS::AfterInitSysVersion;
             return true;
@@ -828,6 +865,9 @@ void NRF8001::handleEvent()
             // Bonding succeeded
             isBonded = true;
 
+            sysCommandState = SysCS::AfterConnect;  //changed for A 7.0
+            BTProtocolCallbacks::onConnect();   //changed for A 7.0
+/*
             // Were we just doing passcode entry? Disconnect to save the new keys.
             if (BTProtocol::isPairingInProgress()) {
                 sysCommandState = SysCS::Disconnect;
@@ -835,6 +875,7 @@ void NRF8001::handleEvent()
                 sysCommandState = SysCS::AfterConnect;
                 BTProtocolCallbacks::onConnect();
             }
+*/                        
             return;
         }
 
@@ -910,11 +951,20 @@ void NRF8001::handleEvent()
             if (length > 0) {
                 switch (pipe) {
 
-                    case PIPE_SIFTEO_BASE_DATA_OUT_RX:
-                    case PIPE_SIFTEO_BASE_DATA_OUT_RX_ACK_AUTO:
+//                    case PIPE_SIFTEO_BASE_DATA_OUT_RX:
+//                    case PIPE_SIFTEO_BASE_DATA_OUT_RX_ACK_AUTO:
+//                        BTProtocolCallbacks::onReceiveData(&rxBuffer.param[1], length);
+//                        requestTransaction();
+//                        break;				
+                    case PIPE_HID_SERVICE_HID_CONTROL_POINT_RX: {
+					/**add the head to rxBuffer and change the PIPE name
+					 * Game app will return the Notify for HID control point					
+					 */						
+
                         BTProtocolCallbacks::onReceiveData(&rxBuffer.param[1], length);
                         requestTransaction();
                         break;
+					}					
                 }
             }
             return;
@@ -1073,8 +1123,8 @@ void NRF8001::handleCommandStatus(unsigned command, unsigned status)
             UART("BT Unbonding\r\n");
         #endif
 
-        isUnbonding = true;
-        sysCommandState = SysCS::RadioReset;
+//        isUnbonding = true;
+//        sysCommandState = SysCS::RadioReset;
 
     } else if (status > ACI_STATUS_TRANSACTION_COMPLETE) {
         /*

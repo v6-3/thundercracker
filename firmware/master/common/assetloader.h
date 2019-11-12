@@ -166,7 +166,7 @@ private:
      */
     static ALWAYS_INLINE void resetDeadline(_SYSCubeID id)
     {
-        cubeDeadline[id] = SysTime::ticks() + SysTime::msTicks(2500);
+        cubeDeadline[id] = SysTime::ticks() + SysTime::msTicks(5000);// changed for new flash 2500 to 5000 20190923
     }
 
     // Pick the next valid query ID, and return it.

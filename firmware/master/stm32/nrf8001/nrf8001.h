@@ -112,7 +112,7 @@ private:
         struct {
             uint8_t length;
             uint8_t continued;
-            uint8_t data[26];
+            uint8_t data[27];
 
             int calculatedLength() const {
                 return length + sizeof *this - sizeof data;
@@ -146,6 +146,7 @@ private:
     bool isBonded;               // Have we bonded (paired) with another device?
     bool isSetupFinished;        // Did we get confirmation that SETUP completed?
     bool isUnbonding;            // Do we want to ignore bonding data temporarily?
+    bool isDynSaving;            // Do we want to save dynamic date one time?   
     uint8_t sysCommandState;     // produceSystemCommand() state machine
     uint8_t sysCommandPending;   // Are we waiting on a response to a command?
     uint8_t testState;           // Requested SystemCommandState to get into Test mode
